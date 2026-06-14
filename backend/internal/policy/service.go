@@ -76,6 +76,10 @@ func (s *Service) EvaluateAll(ctx context.Context, facts map[string]string) []De
 	return decisions
 }
 
+func (s *Service) Execute(ctx context.Context, facts map[string]string) ExecutionResult {
+	return NewExecutionResult(s.EvaluateAll(ctx, facts))
+}
+
 func evaluateDocument(doc Document, facts map[string]string) Decision {
 	compliant := EvaluateConditions(doc.Conditions, facts)
 	message := doc.Message
