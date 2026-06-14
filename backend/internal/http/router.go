@@ -120,7 +120,7 @@ func evaluateAllPoliciesHandler(policyService *policy.Service) http.HandlerFunc 
 			writeError(w, http.StatusBadRequest, "invalid_json", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": policyService.EvaluateAll(r.Context(), facts)})
+		writeJSON(w, http.StatusOK, policyService.Execute(r.Context(), facts))
 	}
 }
 

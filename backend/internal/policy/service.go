@@ -28,6 +28,7 @@ type Decision struct {
 type Service struct {
 	mu       sync.RWMutex
 	policies map[string]Document
+	audit    []string
 }
 
 func NewService() *Service {
@@ -43,6 +44,7 @@ func (s *Service) AddPolicy(ctx context.Context, doc Document) (Document, error)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.policies[parsed.Name] = parsed
+	s.audit = append(s.audit, "policy.created:"+parsed.Name)
 	return parsed, nil
 }
 
@@ -64,7 +66,11 @@ func (s *Service) Evaluate(ctx context.Context, name string, facts map[string]st
 	if !ok {
 		return Decision{}, fmt.Errorf("policy not found")
 	}
-	return evaluateDocument(doc, facts), nil
+	decision := evaluateDocument(doc, facts)
+	s.mu.Lock()
+	s.audit = append(s.audit, "policy.evaluated:"+name)
+	s.mu.Unlock()
+	return decision, nil
 }
 
 func (s *Service) EvaluateAll(ctx context.Context, facts map[string]string) []Decision {
@@ -77,7 +83,20 @@ func (s *Service) EvaluateAll(ctx context.Context, facts map[string]string) []De
 }
 
 func (s *Service) Execute(ctx context.Context, facts map[string]string) ExecutionResult {
-	return NewExecutionResult(s.EvaluateAll(ctx, facts))
+	result := NewExecutionResult(s.EvaluateAll(ctx, facts))
+	s.mu.Lock()
+	s.audit = append(s.audit, "policy.evaluate_all")
+	s.mu.Unlock()
+	return result
+}
+
+func (s *Service) AuditEvents() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	events := make([]string, len(s.audit))
+	copy(events, s.audit)
+	return events
 }
 
 func evaluateDocument(doc Document, facts map[string]string) Decision {
