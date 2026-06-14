@@ -93,7 +93,7 @@ func (s *Service) Evaluate(assetID string, createdAt time.Time) (Finding, error)
 	if !ok {
 		return Finding{}, fmt.Errorf("asset has no retention assignment")
 	}
-	expiredAt := createdAt.AddDate(0, 0, policy.RetentionDays)
+	expiredAt := CalculateExpiry(createdAt, policy.RetentionDays)
 	violation := time.Now().UTC().After(expiredAt)
 	return Finding{AssetID: assetID, PolicyID: policy.ID, ExpiredAt: expiredAt, Violation: violation, Recommended: policy.Action}, nil
 }
@@ -105,4 +105,12 @@ func (s *Service) Simulate(assetID string, createdAt time.Time, at time.Time) (F
 	}
 	finding.Violation = at.After(finding.ExpiredAt)
 	return finding, nil
+}
+
+func CalculateExpiry(createdAt time.Time, retentionDays int) time.Time {
+	return createdAt.AddDate(0, 0, retentionDays)
+}
+
+func IsViolation(expiredAt time.Time, at time.Time) bool {
+	return at.After(expiredAt)
 }
