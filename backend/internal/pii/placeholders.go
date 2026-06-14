@@ -57,6 +57,10 @@ func NewAddressDetector() Detector {
 	return NewKeywordDetector("address-placeholder", "address", 0.50, "address", "street")
 }
 
+func NewSensitiveTextDetector() Detector {
+	return NewKeywordDetector("sensitive-text-placeholder", "sensitive_text", 0.45, "secret", "token", "password")
+}
+
 func DefaultDetectors() []Detector {
 	return []Detector{
 		NewEmailDetector(),
@@ -66,6 +70,6 @@ func DefaultDetectors() []Detector {
 		NewNationalIDDetector(),
 		NewNameDetector(),
 		NewAddressDetector(),
-		NewKeywordDetector("sensitive-text-placeholder", "sensitive_text", 0.45, "secret", "token", "password"),
+		NewSensitiveTextDetector(),
 	}
 }
