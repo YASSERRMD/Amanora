@@ -9,26 +9,6 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
 )
 
-type JobStatus string
-
-const (
-	JobQueued    JobStatus = "queued"
-	JobRunning   JobStatus = "running"
-	JobSucceeded JobStatus = "succeeded"
-	JobFailed    JobStatus = "failed"
-)
-
-type Job struct {
-	ID           string                     `json:"id"`
-	DataSourceID string                     `json:"dataSourceId"`
-	Status       JobStatus                  `json:"status"`
-	Assets       []datasource.AssetMetadata `json:"assets,omitempty"`
-	Error        string                     `json:"error,omitempty"`
-	CreatedAt    time.Time                  `json:"createdAt"`
-	StartedAt    *time.Time                 `json:"startedAt,omitempty"`
-	FinishedAt   *time.Time                 `json:"finishedAt,omitempty"`
-}
-
 type EventPublisher interface {
 	PublishDiscoveryEvent(ctx context.Context, event Event) error
 }
@@ -50,6 +30,7 @@ type Service struct {
 	audit       AuditSink
 	mu          sync.RWMutex
 	jobs        map[string]Job
+	results     map[string]Result
 	nextID      int
 }
 
@@ -59,6 +40,7 @@ func NewService(dataSources *datasource.Service, publisher EventPublisher, audit
 		publisher:   publisher,
 		audit:       audit,
 		jobs:        map[string]Job{},
+		results:     map[string]Result{},
 		nextID:      1,
 	}
 }
@@ -72,7 +54,7 @@ func (s *Service) CreateJob(ctx context.Context, dataSourceID string) (Job, erro
 	job := Job{
 		ID:           fmt.Sprintf("disc_%06d", s.nextID),
 		DataSourceID: dataSourceID,
-		Status:       JobQueued,
+		Status:       JobStatusPending,
 		CreatedAt:    time.Now().UTC(),
 	}
 	s.nextID++
@@ -116,27 +98,40 @@ func (s *Service) RunJob(ctx context.Context, id string) (Job, error) {
 	}
 
 	started := time.Now().UTC()
-	job.Status = JobRunning
-	job.StartedAt = &started
+	job.Status = JobStatusRunning
+	job.StartedAt = started
 	s.save(job)
 	s.publish(ctx, job, "discovery.job.started")
 
 	assets, err := s.discover(ctx, source)
-	finished := time.Now().UTC()
-	job.FinishedAt = &finished
+	completed := time.Now().UTC()
+	job.CompletedAt = completed
 	if err != nil {
-		job.Status = JobFailed
+		job.Status = JobStatusFailed
 		job.Error = err.Error()
 		s.save(job)
 		s.publish(ctx, job, "discovery.job.failed")
 		return job, err
 	}
 
-	job.Status = JobSucceeded
-	job.Assets = assets
+	job.Status = JobStatusCompleted
 	s.save(job)
+	s.saveResult(Result{
+		JobID:        job.ID,
+		DataSourceID: job.DataSourceID,
+		Assets:       assets,
+		DiscoveredAt: completed,
+	})
 	s.publish(ctx, job, "discovery.job.succeeded")
 	return job, nil
+}
+
+func (s *Service) GetResult(jobID string) (Result, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result, ok := s.results[jobID]
+	return result, ok
 }
 
 func (s *Service) discover(ctx context.Context, source datasource.DataSource) ([]datasource.AssetMetadata, error) {
@@ -160,6 +155,12 @@ func (s *Service) save(job Job) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jobs[job.ID] = job
+}
+
+func (s *Service) saveResult(result Result) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.results[result.JobID] = result
 }
 
 func (s *Service) publish(ctx context.Context, job Job, eventType string) {
