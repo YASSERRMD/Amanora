@@ -9,6 +9,7 @@ import (
 
 	"github.com/YASSERRMD/Amanora/backend/internal/catalog"
 	"github.com/YASSERRMD/Amanora/backend/internal/classifier"
+	"github.com/YASSERRMD/Amanora/backend/internal/compliance"
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
 	"github.com/YASSERRMD/Amanora/backend/internal/discovery"
@@ -16,6 +17,7 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/lineage"
 	"github.com/YASSERRMD/Amanora/backend/internal/policy"
 	"github.com/YASSERRMD/Amanora/backend/internal/retention"
+	"github.com/YASSERRMD/Amanora/backend/internal/risk"
 )
 
 type healthResponse struct {
@@ -40,10 +42,12 @@ func NewRouter(cfg config.Config) http.Handler {
 		lineage.NewService(graph.NewMemoryRepository()),
 		policy.NewService(),
 		retention.NewService(),
+		compliance.NewService(),
+		risk.NewService(),
 	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service, policyService *policy.Service, retentionService *retention.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service, policyService *policy.Service, retentionService *retention.Service, complianceService *compliance.Service, riskService *risk.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -76,9 +80,49 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/retention/policies", listRetentionPoliciesHandler(retentionService))
 	mux.HandleFunc("POST /api/v1/retention/evaluate", evaluateRetentionHandler(retentionService))
 	mux.HandleFunc("POST /api/v1/retention/simulate", simulateRetentionHandler(retentionService))
+	mux.HandleFunc("GET /api/v1/compliance/frameworks", listComplianceFrameworksHandler(complianceService))
+	mux.HandleFunc("POST /api/v1/compliance/run", runComplianceHandler(complianceService))
+	mux.HandleFunc("GET /api/v1/compliance/results", listComplianceResultsHandler(complianceService))
+	mux.HandleFunc("GET /api/v1/risk/assets", calculateRiskHandler(riskService))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func listComplianceFrameworksHandler(complianceService *compliance.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": complianceService.Frameworks()})
+	}
+}
+
+func runComplianceHandler(complianceService *compliance.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		facts := map[string]string{}
+		if err := decodeJSON(r, &facts); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": complianceService.Run(r.Context(), facts)})
+	}
+}
+
+func listComplianceResultsHandler(complianceService *compliance.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": complianceService.Results()})
+	}
+}
+
+func calculateRiskHandler(riskService *risk.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		signal := risk.AssetSignal{
+			AssetID:          r.URL.Query().Get("assetId"),
+			PiiFindings:      2,
+			HasOwner:         r.URL.Query().Get("owner") == "true",
+			HasRetention:     r.URL.Query().Get("retention") == "true",
+			ComplianceFailed: 1,
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": []risk.Score{riskService.Calculate(signal)}})
+	}
 }
 
 func createRetentionPolicyHandler(retentionService *retention.Service) http.HandlerFunc {
