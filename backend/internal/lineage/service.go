@@ -48,3 +48,15 @@ func (s *Service) Upstream(ctx context.Context, assetID string) ([]graph.Edge, e
 func (s *Service) Downstream(ctx context.Context, assetID string) ([]graph.Edge, error) {
 	return s.repo.Downstream(ctx, assetID)
 }
+
+func (s *Service) DownstreamImpact(ctx context.Context, assetID string) (map[string]any, error) {
+	edges, err := s.Downstream(ctx, assetID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"assetId":       assetID,
+		"impactedEdges": edges,
+		"impactCount":   len(edges),
+	}, nil
+}
