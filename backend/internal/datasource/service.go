@@ -3,6 +3,7 @@ package datasource
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -72,6 +73,9 @@ func (s *Service) Register(source DataSource) (DataSource, error) {
 	if _, err := s.registry.Get(source.Type); err != nil {
 		return DataSource{}, err
 	}
+	if source.Options == nil {
+		source.Options = map[string]string{}
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -92,6 +96,9 @@ func (s *Service) List() []DataSource {
 	for _, source := range s.sources {
 		sources = append(sources, source)
 	}
+	sort.Slice(sources, func(i, j int) bool {
+		return sources[i].ID < sources[j].ID
+	})
 	return sources
 }
 
