@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YASSERRMD/Amanora/backend/internal/catalog"
 	"github.com/YASSERRMD/Amanora/backend/internal/classifier"
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
@@ -31,10 +32,11 @@ func NewRouter(cfg config.Config) http.Handler {
 		dataSources,
 		discovery.NewService(dataSources, &discovery.MemoryEventPublisher{}, &discovery.MemoryAuditSink{}),
 		classifier.NewDefaultService(),
+		catalog.NewService(),
 	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -50,9 +52,67 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/classification/jobs", listClassificationJobsHandler(classificationJobs))
 	mux.HandleFunc("GET /api/v1/classification/findings", listClassificationFindingsHandler(classificationJobs))
 	mux.HandleFunc("POST /api/v1/classification/run", runClassificationHandler(classificationJobs))
+	mux.HandleFunc("GET /api/v1/catalog/assets", listCatalogAssetsHandler(catalogService))
+	mux.HandleFunc("GET /api/v1/catalog/search", listCatalogAssetsHandler(catalogService))
+	mux.HandleFunc("GET /api/v1/catalog/assets/{id}", getCatalogAssetHandler(catalogService))
+	mux.HandleFunc("GET /api/v1/catalog/fields/{id}", getCatalogFieldHandler(catalogService))
+	mux.HandleFunc("POST /api/v1/catalog/assets/{id}/tags", assignCatalogTagsHandler(catalogService))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func listCatalogAssetsHandler(catalogService *catalog.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filter := catalog.SearchFilter{
+			Query:          r.URL.Query().Get("q"),
+			Classification: r.URL.Query().Get("classification"),
+			Owner:          r.URL.Query().Get("owner"),
+			Risk:           r.URL.Query().Get("risk"),
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": catalogService.ListAssets(filter)})
+	}
+}
+
+func getCatalogAssetHandler(catalogService *catalog.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		asset, ok := catalogService.GetAsset(r.PathValue("id"))
+		if !ok {
+			writeError(w, http.StatusNotFound, "asset_not_found", nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+	}
+}
+
+func getCatalogFieldHandler(catalogService *catalog.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		field, ok := catalogService.GetField(r.PathValue("id"))
+		if !ok {
+			writeError(w, http.StatusNotFound, "field_not_found", nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, field)
+	}
+}
+
+func assignCatalogTagsHandler(catalogService *catalog.Service) http.HandlerFunc {
+	type request struct {
+		Tags []string `json:"tags"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		asset, err := catalogService.AssignTags(r.PathValue("id"), body.Tags)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "asset_not_found", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, asset)
+	}
 }
 
 func createClassificationJobHandler(classificationJobs *classifier.Service) http.HandlerFunc {
