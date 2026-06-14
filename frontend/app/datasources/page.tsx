@@ -1,11 +1,17 @@
-import { ResourceForm } from "@/components/resource-form";
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function DataSourcesPage() {
   return (
-    <>
-      <ScreenPage title="Data Sources" description="Registered enterprise systems and connectors" filters={["All", "Healthy", "Degraded"]} columns={["Name", "Type", "Status"]} rows={[["Customer Warehouse", "PostgreSQL", "Healthy"], ["HR Exports", "CSV", "Registered"]]} />
-      <div className="px-6 pb-6"><ResourceForm /></div>
-    </>
+    <ResourcePage
+      title="Data Sources"
+      description="Register, test, and monitor governed source connections."
+      filters={["PostgreSQL", "CSV", "Healthy", "Needs review"]}
+      columns={["Source", "Type", "Status"]}
+      rows={[
+        ["Customer Warehouse", "PostgreSQL", "Healthy"],
+        ["Customer Exports", "CSV", "Registered"],
+        ["REST CRM", "REST", "Placeholder"],
+      ]}
+    />
   );
 }

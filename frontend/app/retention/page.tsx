@@ -1,5 +1,16 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function RetentionPage() {
-  return <ScreenPage title="Retention" description="Lifecycle rules, expiry, and violations" filters={["Review", "Archive", "Delete"]} columns={["Policy", "Days", "Action"]} rows={[["Customer PII Review", "365", "Review"], ["Finance Archive", "2555", "Archive"]]} />;
+  return (
+    <ResourcePage
+      title="Retention"
+      description="Evaluate lifecycle rules, expiry windows, and violations."
+      filters={["Review", "Archive", "Delete", "Violation"]}
+      columns={["Policy", "Days", "Action"]}
+      rows={[
+        ["Customer PII Review", "365", "Review"],
+        ["Finance Archive", "2555", "Archive"],
+      ]}
+    />
+  );
 }

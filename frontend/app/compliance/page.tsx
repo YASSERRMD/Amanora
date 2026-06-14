@@ -1,5 +1,17 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function CompliancePage() {
-  return <ScreenPage title="Compliance" description="Framework checks and evidence capture" filters={["GDPR", "UAE PDPL", "Internal"]} columns={["Framework", "Check", "Status"]} rows={[["GDPR-style", "PII owner", "Pass"], ["Internal", "Retention assigned", "Fail"]]} />;
+  return (
+    <ResourcePage
+      title="Compliance"
+      description="Run framework checks and collect evidence."
+      filters={["GDPR-style", "UAE PDPL", "India DPDP", "Internal"]}
+      columns={["Framework", "Check", "Status"]}
+      rows={[
+        ["GDPR-style", "PII owner", "Pass"],
+        ["Internal", "Steward assigned", "Fail"],
+      ]}
+      status="Fail"
+    />
+  );
 }

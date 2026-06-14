@@ -1,5 +1,16 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function CatalogPage() {
-  return <ScreenPage title="Catalog" description="Searchable governed data assets" filters={["PII", "Owned", "High risk"]} columns={["Asset", "Owner", "Classification"]} rows={[["customers", "Privacy", "email"], ["transactions", "Finance", "confidential"]]} />;
+  return (
+    <ResourcePage
+      title="Catalog"
+      description="Search governed data assets, fields, ownership, tags, and risk."
+      filters={["PII", "High risk", "Owned", "Tagged"]}
+      columns={["Asset", "Owner", "Risk"]}
+      rows={[
+        ["customers", "Privacy", "High"],
+        ["finance_transactions", "Finance", "Medium"],
+      ]}
+    />
+  );
 }

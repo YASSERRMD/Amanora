@@ -1,5 +1,16 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function PoliciesPage() {
-  return <ScreenPage title="Policies" description="Governance rules and compliance decisions" filters={["Privacy", "Retention", "Ownership"]} columns={["Policy", "Severity", "Effect"]} rows={[["PII must have owner", "High", "Warn"], ["High risk needs retention", "High", "Require review"]]} />;
+  return (
+    <ResourcePage
+      title="Policies"
+      description="Manage policy documents and governance decisions."
+      filters={["Privacy", "Ownership", "Retention", "Failed"]}
+      columns={["Policy", "Category", "Severity"]}
+      rows={[
+        ["PII data must have owner", "Ownership", "High"],
+        ["High-risk data needs retention", "Retention", "High"],
+      ]}
+    />
+  );
 }

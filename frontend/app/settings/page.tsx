@@ -1,5 +1,16 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function SettingsPage() {
-  return <ScreenPage title="Settings" description="Tenant, API, and governance configuration" filters={["Tenant", "API Keys", "Roles"]} columns={["Setting", "Value", "Status"]} rows={[["Tenant", "Amanora Demo", "Active"], ["API access", "Enabled", "Healthy"]]} />;
+  return (
+    <ResourcePage
+      title="Settings"
+      description="Configure tenants, API keys, roles, and governance defaults."
+      filters={["Tenant", "API keys", "Roles", "Headers"]}
+      columns={["Setting", "Value", "Status"]}
+      rows={[
+        ["Tenant isolation", "Enabled", "Active"],
+        ["API key auth", "Configured", "Active"],
+      ]}
+    />
+  );
 }

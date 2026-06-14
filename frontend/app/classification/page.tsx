@@ -1,5 +1,17 @@
-import { ScreenPage } from "@/components/screen-page";
+import { ResourcePage } from "@/components/resource-page";
 
 export default function ClassificationPage() {
-  return <ScreenPage title="PII Findings" description="Sensitive data detections and review status" filters={["Open", "Confirmed", "False positive"]} columns={["Asset", "Field", "PII Type"]} rows={[["customers", "email", "email"], ["customers", "phone", "phone_number"]]} />;
+  return (
+    <ResourcePage
+      title="Classification"
+      description="Review PII findings and classification jobs."
+      filters={["Email", "Phone", "Passport", "False positive"]}
+      columns={["Field", "PII Type", "Confidence"]}
+      rows={[
+        ["email", "Email", "98%"],
+        ["phone", "Phone", "93%"],
+      ]}
+      status="High"
+    />
+  );
 }
