@@ -9,6 +9,7 @@ import (
 
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
+	"github.com/YASSERRMD/Amanora/backend/internal/discovery"
 )
 
 type healthResponse struct {
@@ -23,10 +24,11 @@ func NewRouter(cfg config.Config) http.Handler {
 	if err != nil {
 		panic(err)
 	}
-	return NewRouterWithServices(cfg, datasource.NewService(registry))
+	dataSources := datasource.NewService(registry)
+	return NewRouterWithServices(cfg, dataSources, discovery.NewService(dataSources, &discovery.MemoryEventPublisher{}, &discovery.MemoryAuditSink{}))
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -34,9 +36,64 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service) h
 	mux.HandleFunc("GET /api/v1/datasources/{id}", getDataSourceHandler(dataSources))
 	mux.HandleFunc("POST /api/v1/datasources/{id}/test", testExistingDataSourceHandler(dataSources))
 	mux.HandleFunc("POST /api/v1/datasources/test", testDataSourceHandler(dataSources))
+	mux.HandleFunc("POST /api/v1/discovery/jobs", createDiscoveryJobHandler(discoveryJobs))
+	mux.HandleFunc("GET /api/v1/discovery/jobs", listDiscoveryJobsHandler(discoveryJobs))
+	mux.HandleFunc("GET /api/v1/discovery/jobs/{id}", getDiscoveryJobHandler(discoveryJobs))
+	mux.HandleFunc("POST /api/v1/discovery/jobs/{id}/run", runDiscoveryJobHandler(discoveryJobs))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func createDiscoveryJobHandler(discoveryJobs *discovery.Service) http.HandlerFunc {
+	type request struct {
+		DataSourceID string `json:"dataSourceId"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+
+		job, err := discoveryJobs.CreateJob(r.Context(), body.DataSourceID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "discovery_job_invalid", err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, job)
+	}
+}
+
+func listDiscoveryJobsHandler(discoveryJobs *discovery.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": discoveryJobs.ListJobs()})
+	}
+}
+
+func getDiscoveryJobHandler(discoveryJobs *discovery.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		job, ok := discoveryJobs.GetJob(r.PathValue("id"))
+		if !ok {
+			writeError(w, http.StatusNotFound, "discovery_job_not_found", nil)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, job)
+	}
+}
+
+func runDiscoveryJobHandler(discoveryJobs *discovery.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		job, err := discoveryJobs.RunJob(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, job)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, job)
+	}
 }
 
 func createDataSourceHandler(dataSources *datasource.Service) http.HandlerFunc {
