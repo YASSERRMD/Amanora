@@ -18,5 +18,6 @@ func DefaultDetectors() []Detector {
 	return []Detector{
 		NewEmailDetector(),
 		NewPhoneDetector(),
+		NewCreditCardDetector(),
 	}
 }
