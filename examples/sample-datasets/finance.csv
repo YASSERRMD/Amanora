@@ -1,0 +1,3 @@
+transaction_id,customer_id,card_number,amount,currency
+txn_001,cst_001,4111111111111111,120.50,AED
+txn_002,cst_002,5555555555554444,88.25,AED

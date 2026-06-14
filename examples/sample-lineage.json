@@ -1,0 +1,5 @@
+[
+  { "fromId": "customers.csv", "toId": "customers", "type": "ingests" },
+  { "fromId": "customers", "toId": "customer_risk_dashboard", "type": "produces" },
+  { "fromId": "finance.csv", "toId": "customer_risk_dashboard", "type": "produces" }
+]
