@@ -1,0 +1,5 @@
+[
+  { "assetName": "customers.csv", "fieldName": "email", "piiType": "email", "confidence": 0.98 },
+  { "assetName": "hr.csv", "fieldName": "passport_number", "piiType": "passport", "confidence": 0.55 },
+  { "assetName": "finance.csv", "fieldName": "card_number", "piiType": "credit_card", "confidence": 0.55 }
+]

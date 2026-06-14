@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Customer CSV",
+    "type": "csv",
+    "options": {
+      "path": "examples/sample-datasets/customers.csv"
+    }
+  },
+  {
+    "name": "HR CSV",
+    "type": "csv",
+    "options": {
+      "path": "examples/sample-datasets/hr.csv"
+    }
+  },
+  {
+    "name": "Finance CSV",
+    "type": "csv",
+    "options": {
+      "path": "examples/sample-datasets/finance.csv"
+    }
+  }
+]

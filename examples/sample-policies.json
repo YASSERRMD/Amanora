@@ -1,0 +1,16 @@
+[
+  {
+    "name": "PII assets must have owners",
+    "category": "ownership",
+    "severity": "high",
+    "conditions": { "classification": "pii", "owner": "present" },
+    "effect": "warn"
+  },
+  {
+    "name": "High risk assets require retention",
+    "category": "retention",
+    "severity": "high",
+    "conditions": { "risk": "high", "retention": "assigned" },
+    "effect": "require_review"
+  }
+]
