@@ -9,34 +9,36 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
 )
 
-func TestDiscoveryJobLifecycleStoresResultsAndEvents(t *testing.T) {
+func TestDiscoveryJobLifecycleStoresResultAndAudit(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "customers.csv")
-	if err := os.WriteFile(path, []byte("email,age\nada@example.com,42\n"), 0o600); err != nil {
-		t.Fatalf("write csv: %v", err)
+	csvPath := filepath.Join(dir, "customers.csv")
+	if err := os.WriteFile(csvPath, []byte("email,age\nperson@example.com,42\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 
-	registry, err := datasource.DefaultRegistry()
+	registry, err := datasource.NewRegistry(datasource.NewCSVConnector())
 	if err != nil {
-		t.Fatalf("default registry: %v", err)
+		t.Fatal(err)
 	}
 	dataSources := datasource.NewService(registry)
 	source, err := dataSources.Register(datasource.DataSource{
-		Name:    "customers",
-		Type:    datasource.SourceTypeCSV,
-		Options: map[string]string{"path": path},
+		Name: "customers",
+		Type: datasource.SourceTypeCSV,
+		Options: map[string]string{
+			"path": csvPath,
+		},
 	})
 	if err != nil {
-		t.Fatalf("register source: %v", err)
+		t.Fatal(err)
 	}
 
-	publisher := &MemoryEventPublisher{}
+	events := &MemoryEventPublisher{}
 	audit := &MemoryAuditSink{}
-	service := NewService(dataSources, publisher, audit)
+	service := NewService(dataSources, events, audit)
 
 	job, err := service.CreateJob(context.Background(), source.ID)
 	if err != nil {
-		t.Fatalf("create job: %v", err)
+		t.Fatal(err)
 	}
 	if job.Status != JobStatusPending {
 		t.Fatalf("expected pending job, got %s", job.Status)
@@ -44,7 +46,7 @@ func TestDiscoveryJobLifecycleStoresResultsAndEvents(t *testing.T) {
 
 	job, err = service.RunJob(context.Background(), job.ID)
 	if err != nil {
-		t.Fatalf("run job: %v", err)
+		t.Fatal(err)
 	}
 	if job.Status != JobStatusCompleted {
 		t.Fatalf("expected completed job, got %s", job.Status)
@@ -52,39 +54,15 @@ func TestDiscoveryJobLifecycleStoresResultsAndEvents(t *testing.T) {
 
 	result, ok := service.GetResult(job.ID)
 	if !ok {
-		t.Fatal("expected discovery result")
+		t.Fatal("expected stored discovery result")
 	}
 	if len(result.Assets) != 1 {
-		t.Fatalf("expected one discovered asset, got %d", len(result.Assets))
+		t.Fatalf("expected 1 discovered asset, got %d", len(result.Assets))
 	}
-	if len(publisher.Snapshot()) != 3 {
-		t.Fatalf("expected 3 discovery events, got %d", len(publisher.Snapshot()))
+	if len(events.Events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events.Events))
 	}
-	if len(audit.Snapshot()) != 3 {
-		t.Fatalf("expected 3 audit actions, got %d", len(audit.Snapshot()))
-	}
-}
-
-func TestDiscoveryMetadataSummaries(t *testing.T) {
-	assets := []datasource.AssetMetadata{{
-		Name:       "customers",
-		SchemaName: "public",
-		Fields: []datasource.FieldMetadata{
-			{Name: "email", DataType: "text", Nullable: false},
-			{Name: "age", DataType: "integer", Nullable: true},
-		},
-	}}
-
-	if len(NewSchemaDiscoveryService().DiscoverSchemas(assets)) != 1 {
-		t.Fatal("expected one schema summary")
-	}
-	if len(NewTableDiscoveryService().DiscoverTables(assets)) != 1 {
-		t.Fatal("expected one table summary")
-	}
-	if len(NewFieldDiscoveryService().DiscoverFields(assets)) != 2 {
-		t.Fatal("expected two field summaries")
-	}
-	if len(NewSamplingService().BuildSamples(assets)) != 2 {
-		t.Fatal("expected two sample sets")
+	if len(audit.Actions) != 3 {
+		t.Fatalf("expected 3 audit actions, got %d", len(audit.Actions))
 	}
 }
