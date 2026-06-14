@@ -1,0 +1,139 @@
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        AMANORA_COMMAND: api
+    environment:
+      AMANORA_HTTP_ADDR: :8080
+      DATABASE_URL: postgres://amanora:amanora@postgres:5432/amanora?sslmode=disable
+      REDIS_ADDR: redis:6379
+      NEO4J_URI: bolt://neo4j:7687
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      neo4j:
+        condition: service_started
+      redpanda:
+        condition: service_started
+
+  discovery-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        AMANORA_COMMAND: discovery-worker
+    depends_on:
+      - api
+      - redpanda
+
+  classifier-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        AMANORA_COMMAND: classifier-worker
+    depends_on:
+      - api
+      - redpanda
+
+  policy-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        AMANORA_COMMAND: policy-worker
+    depends_on:
+      - api
+      - redpanda
+
+  retention-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        AMANORA_COMMAND: retention-worker
+    depends_on:
+      - api
+      - redpanda
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: amanora
+      POSTGRES_USER: amanora
+      POSTGRES_PASSWORD: amanora
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amanora -d amanora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  neo4j:
+    image: neo4j:2025.10-community
+    environment:
+      NEO4J_AUTH: neo4j/amanora-password
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+
+  redpanda:
+    image: redpandadata/redpanda:v25.3.1
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+
+volumes:
+  postgres-data:
+  redis-data:
+  neo4j-data:
+  redpanda-data:
