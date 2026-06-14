@@ -190,6 +190,15 @@ func (p *MemoryEventPublisher) PublishDiscoveryEvent(ctx context.Context, event 
 	return nil
 }
 
+func (p *MemoryEventPublisher) Snapshot() []Event {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	events := make([]Event, len(p.Events))
+	copy(events, p.Events)
+	return events
+}
+
 type MemoryAuditSink struct {
 	mu      sync.Mutex
 	Actions []string
