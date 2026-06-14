@@ -45,13 +45,17 @@ func NewPassportDetector() Detector {
 	return NewKeywordDetector("passport-placeholder", "passport", 0.55, "passport")
 }
 
+func NewNationalIDDetector() Detector {
+	return NewKeywordDetector("national-id-placeholder", "national_id", 0.55, "national_id", "ssn", "emirates_id")
+}
+
 func DefaultDetectors() []Detector {
 	return []Detector{
 		NewEmailDetector(),
 		NewPhoneDetector(),
 		NewCreditCardDetector(),
 		NewPassportDetector(),
-		NewKeywordDetector("national-id-placeholder", "national_id", 0.55, "national_id", "ssn", "emirates_id"),
+		NewNationalIDDetector(),
 		NewKeywordDetector("name-placeholder", "name", 0.50, "full_name", "first_name", "last_name"),
 		NewKeywordDetector("address-placeholder", "address", 0.50, "address", "street"),
 		NewKeywordDetector("sensitive-text-placeholder", "sensitive_text", 0.45, "secret", "token", "password"),
