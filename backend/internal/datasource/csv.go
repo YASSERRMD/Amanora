@@ -7,51 +7,39 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type CSVConnector struct{}
-
-func NewCSVConnector() CSVConnector {
-	return CSVConnector{}
-}
 
 func (CSVConnector) Type() SourceType {
 	return SourceTypeCSV
 }
 
 func (CSVConnector) TestConnection(ctx context.Context, cfg ConnectionConfig) (TestResult, error) {
-	path := cfg.ConnectionURI
-	if path == "" {
-		path = cfg.Options["path"]
-	}
+	_ = ctx
+	path := cfg.Options["path"]
 	if path == "" {
 		return TestResult{OK: false, Message: "csv path is required"}, fmt.Errorf("csv path is required")
 	}
 
 	file, err := os.Open(path)
 	if err != nil {
-		return TestResult{OK: false, Message: err.Error()}, err
+		return TestResult{OK: false, Message: "csv file cannot be opened"}, err
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	if _, err := reader.Read(); err != nil {
-		return TestResult{OK: false, Message: err.Error()}, err
+		return TestResult{OK: false, Message: "csv header cannot be read"}, err
 	}
 
-	select {
-	case <-ctx.Done():
-		return TestResult{OK: false, Message: ctx.Err().Error()}, ctx.Err()
-	default:
-		return TestResult{OK: true, Message: "csv file readable"}, nil
-	}
+	return TestResult{OK: true, Message: "csv file is readable"}, nil
 }
 
 func (CSVConnector) DiscoverAssets(ctx context.Context, cfg ConnectionConfig) ([]AssetMetadata, error) {
-	path := cfg.ConnectionURI
-	if path == "" {
-		path = cfg.Options["path"]
-	}
+	_ = ctx
+	path := cfg.Options["path"]
 	if path == "" {
 		return nil, fmt.Errorf("csv path is required")
 	}
@@ -63,36 +51,62 @@ func (CSVConnector) DiscoverAssets(ctx context.Context, cfg ConnectionConfig) ([
 	defer file.Close()
 
 	reader := csv.NewReader(file)
-	header, err := reader.Read()
+	headers, err := reader.Read()
 	if err != nil {
 		return nil, err
 	}
 
-	fields := make([]FieldMetadata, 0, len(header))
-	for i, name := range header {
+	sample, err := reader.Read()
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	fields := make([]FieldMetadata, 0, len(headers))
+	for index, header := range headers {
+		value := ""
+		if index < len(sample) {
+			value = sample[index]
+		}
 		fields = append(fields, FieldMetadata{
-			Name:            name,
-			OrdinalPosition: i + 1,
-			DataType:        "text",
+			Name:            normalizeHeader(header, index),
+			OrdinalPosition: index + 1,
+			DataType:        inferCSVType(value),
 			Nullable:        true,
 		})
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			if _, err := reader.Read(); err == io.EOF {
-				return []AssetMetadata{{
-					Name:               filepath.Base(path),
-					Type:               "file",
-					FullyQualifiedName: path,
-					Fields:             fields,
-				}}, nil
-			} else if err != nil {
-				return nil, err
-			}
+	name := filepath.Base(path)
+	return []AssetMetadata{{
+		Name:               name,
+		Type:               "file",
+		FullyQualifiedName: fmt.Sprintf("csv.%s.%s", cfg.Name, name),
+		Fields:             fields,
+	}}, nil
+}
+
+func normalizeHeader(header string, index int) string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return fmt.Sprintf("column_%d", index+1)
+	}
+	return header
+}
+
+func inferCSVType(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "text"
+	}
+	if strings.EqualFold(value, "true") || strings.EqualFold(value, "false") {
+		return "boolean"
+	}
+	if strings.ContainsAny(value, ".") {
+		return "decimal"
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return "text"
 		}
 	}
+	return "integer"
 }
