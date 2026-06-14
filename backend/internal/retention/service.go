@@ -12,6 +12,7 @@ type Policy struct {
 	Name          string `json:"name"`
 	RetentionDays int    `json:"retentionDays"`
 	Action        string `json:"action"`
+	Rule          string `json:"rule,omitempty"`
 }
 
 type Assignment struct {
