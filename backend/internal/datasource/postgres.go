@@ -11,33 +11,28 @@ import (
 
 type PostgresConnector struct{}
 
-func NewPostgresConnector() PostgresConnector {
-	return PostgresConnector{}
-}
-
 func (PostgresConnector) Type() SourceType {
 	return SourceTypePostgres
 }
 
 func (PostgresConnector) TestConnection(ctx context.Context, cfg ConnectionConfig) (TestResult, error) {
-	db, err := openPostgres(cfg)
+	db, err := sql.Open("pgx", cfg.ConnectionURI)
 	if err != nil {
-		return TestResult{OK: false, Message: err.Error()}, err
+		return TestResult{OK: false, Message: "postgres configuration is invalid"}, err
 	}
 	defer db.Close()
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		return TestResult{OK: false, Message: err.Error()}, err
+	if err := db.PingContext(pingCtx); err != nil {
+		return TestResult{OK: false, Message: "postgres connection failed"}, err
 	}
 
-	return TestResult{OK: true, Message: "postgres connection ok"}, nil
+	return TestResult{OK: true, Message: "postgres connection succeeded"}, nil
 }
 
 func (PostgresConnector) DiscoverAssets(ctx context.Context, cfg ConnectionConfig) ([]AssetMetadata, error) {
-	db, err := openPostgres(cfg)
+	db, err := sql.Open("pgx", cfg.ConnectionURI)
 	if err != nil {
 		return nil, err
 	}
@@ -56,29 +51,29 @@ func (PostgresConnector) DiscoverAssets(ctx context.Context, cfg ConnectionConfi
 
 	assetsByName := map[string]*AssetMetadata{}
 	for rows.Next() {
-		var schemaName, tableName, columnName, dataType, nullable string
+		var schemaName, tableName, columnName, dataType, nullableText string
 		var ordinal int
-		if err := rows.Scan(&schemaName, &tableName, &columnName, &ordinal, &dataType, &nullable); err != nil {
+		if err := rows.Scan(&schemaName, &tableName, &columnName, &ordinal, &dataType, &nullableText); err != nil {
 			return nil, err
 		}
 
-		key := schemaName + "." + tableName
-		asset, exists := assetsByName[key]
+		fqn := fmt.Sprintf("postgres.%s.%s.%s", cfg.Name, schemaName, tableName)
+		asset, exists := assetsByName[fqn]
 		if !exists {
 			asset = &AssetMetadata{
 				Name:               tableName,
 				SchemaName:         schemaName,
 				Type:               "table",
-				FullyQualifiedName: fmt.Sprintf("%s.%s.%s", cfg.Name, schemaName, tableName),
+				FullyQualifiedName: fqn,
 			}
-			assetsByName[key] = asset
+			assetsByName[fqn] = asset
 		}
 
 		asset.Fields = append(asset.Fields, FieldMetadata{
 			Name:            columnName,
 			OrdinalPosition: ordinal,
 			DataType:        dataType,
-			Nullable:        nullable == "YES",
+			Nullable:        nullableText == "YES",
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -91,11 +86,4 @@ func (PostgresConnector) DiscoverAssets(ctx context.Context, cfg ConnectionConfi
 	}
 
 	return assets, nil
-}
-
-func openPostgres(cfg ConnectionConfig) (*sql.DB, error) {
-	if cfg.ConnectionURI == "" {
-		return nil, fmt.Errorf("postgres connection uri is required")
-	}
-	return sql.Open("pgx", cfg.ConnectionURI)
 }
