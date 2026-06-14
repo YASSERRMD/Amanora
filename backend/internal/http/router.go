@@ -15,6 +15,7 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/graph"
 	"github.com/YASSERRMD/Amanora/backend/internal/lineage"
 	"github.com/YASSERRMD/Amanora/backend/internal/policy"
+	"github.com/YASSERRMD/Amanora/backend/internal/retention"
 )
 
 type healthResponse struct {
@@ -38,10 +39,11 @@ func NewRouter(cfg config.Config) http.Handler {
 		catalog.NewService(),
 		lineage.NewService(graph.NewMemoryRepository()),
 		policy.NewService(),
+		retention.NewService(),
 	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service, policyService *policy.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service, policyService *policy.Service, retentionService *retention.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -70,9 +72,90 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/policies", listPoliciesHandler(policyService))
 	mux.HandleFunc("POST /api/v1/policies/{id}/evaluate", evaluatePolicyHandler(policyService))
 	mux.HandleFunc("POST /api/v1/policies/evaluate-all", evaluateAllPoliciesHandler(policyService))
+	mux.HandleFunc("POST /api/v1/retention/policies", createRetentionPolicyHandler(retentionService))
+	mux.HandleFunc("GET /api/v1/retention/policies", listRetentionPoliciesHandler(retentionService))
+	mux.HandleFunc("POST /api/v1/retention/evaluate", evaluateRetentionHandler(retentionService))
+	mux.HandleFunc("POST /api/v1/retention/simulate", simulateRetentionHandler(retentionService))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func createRetentionPolicyHandler(retentionService *retention.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var policy retention.Policy
+		if err := decodeJSON(r, &policy); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		created, err := retentionService.AddPolicy(r.Context(), policy)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "retention_policy_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func listRetentionPoliciesHandler(retentionService *retention.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": retentionService.ListPolicies()})
+	}
+}
+
+func evaluateRetentionHandler(retentionService *retention.Service) http.HandlerFunc {
+	type request struct {
+		AssetID   string    `json:"assetId"`
+		PolicyID  string    `json:"policyId"`
+		CreatedAt time.Time `json:"createdAt"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		if body.PolicyID != "" {
+			if _, err := retentionService.Assign(body.AssetID, body.PolicyID); err != nil {
+				writeError(w, http.StatusBadRequest, "retention_assignment_invalid", err)
+				return
+			}
+		}
+		finding, err := retentionService.Evaluate(body.AssetID, body.CreatedAt)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "retention_evaluation_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, finding)
+	}
+}
+
+func simulateRetentionHandler(retentionService *retention.Service) http.HandlerFunc {
+	type request struct {
+		AssetID   string    `json:"assetId"`
+		PolicyID  string    `json:"policyId"`
+		CreatedAt time.Time `json:"createdAt"`
+		At        time.Time `json:"at"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		if body.PolicyID != "" {
+			if _, err := retentionService.Assign(body.AssetID, body.PolicyID); err != nil {
+				writeError(w, http.StatusBadRequest, "retention_assignment_invalid", err)
+				return
+			}
+		}
+		finding, err := retentionService.Simulate(body.AssetID, body.CreatedAt, body.At)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "retention_simulation_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, finding)
+	}
 }
 
 func createPolicyHandler(policyService *policy.Service) http.HandlerFunc {
