@@ -37,11 +37,15 @@ func (d KeywordDetector) Detect(field datasource.FieldMetadata, samples []string
 	return nil
 }
 
+func NewCreditCardDetector() Detector {
+	return NewKeywordDetector("credit-card-placeholder", "credit_card", 0.55, "credit_card", "card_number", "pan")
+}
+
 func DefaultDetectors() []Detector {
 	return []Detector{
 		NewEmailDetector(),
 		NewPhoneDetector(),
-		NewKeywordDetector("credit-card-placeholder", "credit_card", 0.55, "credit_card", "card_number", "pan"),
+		NewCreditCardDetector(),
 		NewKeywordDetector("passport-placeholder", "passport", 0.55, "passport"),
 		NewKeywordDetector("national-id-placeholder", "national_id", 0.55, "national_id", "ssn", "emirates_id"),
 		NewKeywordDetector("name-placeholder", "name", 0.50, "full_name", "first_name", "last_name"),
