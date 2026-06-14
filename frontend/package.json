@@ -14,6 +14,9 @@
     "react-dom": "19.2.7",
     "recharts": "3.5.0"
   },
+  "overrides": {
+    "postcss": "8.5.15"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.1",
     "@types/node": "latest",
