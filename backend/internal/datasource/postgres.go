@@ -11,6 +11,10 @@ import (
 
 type PostgresConnector struct{}
 
+func NewPostgresConnector() PostgresConnector {
+	return PostgresConnector{}
+}
+
 func (PostgresConnector) Type() SourceType {
 	return SourceTypePostgres
 }

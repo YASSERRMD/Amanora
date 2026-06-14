@@ -12,6 +12,10 @@ import (
 
 type CSVConnector struct{}
 
+func NewCSVConnector() CSVConnector {
+	return CSVConnector{}
+}
+
 func (CSVConnector) Type() SourceType {
 	return SourceTypeCSV
 }
