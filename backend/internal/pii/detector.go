@@ -17,5 +17,6 @@ type Detector interface {
 func DefaultDetectors() []Detector {
 	return []Detector{
 		NewEmailDetector(),
+		NewPhoneDetector(),
 	}
 }
