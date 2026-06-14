@@ -29,10 +29,62 @@ func NewRouter(cfg config.Config) http.Handler {
 func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
+	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
+	mux.HandleFunc("GET /api/v1/datasources", listDataSourcesHandler(dataSources))
+	mux.HandleFunc("GET /api/v1/datasources/{id}", getDataSourceHandler(dataSources))
+	mux.HandleFunc("POST /api/v1/datasources/{id}/test", testExistingDataSourceHandler(dataSources))
 	mux.HandleFunc("POST /api/v1/datasources/test", testDataSourceHandler(dataSources))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func createDataSourceHandler(dataSources *datasource.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var source datasource.DataSource
+		if err := decodeJSON(r, &source); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+
+		created, err := dataSources.Register(source)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "data_source_invalid", err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func listDataSourcesHandler(dataSources *datasource.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": dataSources.List()})
+	}
+}
+
+func getDataSourceHandler(dataSources *datasource.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		source, ok := dataSources.Get(r.PathValue("id"))
+		if !ok {
+			writeError(w, http.StatusNotFound, "data_source_not_found", nil)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, source)
+	}
+}
+
+func testExistingDataSourceHandler(dataSources *datasource.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := dataSources.TestDataSource(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, result)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, result)
+	}
 }
 
 func testDataSourceHandler(dataSources *datasource.Service) http.HandlerFunc {

@@ -48,6 +48,20 @@ func (s *Service) TestConnection(ctx context.Context, cfg ConnectionConfig) (Tes
 	return connector.TestConnection(ctx, cfg)
 }
 
+func (s *Service) TestDataSource(ctx context.Context, id string) (TestResult, error) {
+	source, ok := s.Get(id)
+	if !ok {
+		return TestResult{OK: false, Message: "data source not found"}, fmt.Errorf("data source not found")
+	}
+
+	return s.TestConnection(ctx, ConnectionConfig{
+		Name:          source.Name,
+		Type:          source.Type,
+		ConnectionURI: source.ConnectionURI,
+		Options:       source.Options,
+	})
+}
+
 func (s *Service) Register(source DataSource) (DataSource, error) {
 	if source.Name == "" {
 		return DataSource{}, fmt.Errorf("name is required")
