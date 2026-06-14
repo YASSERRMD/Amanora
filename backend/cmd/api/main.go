@@ -11,22 +11,16 @@ import (
 	"time"
 
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
+	httpapi "github.com/YASSERRMD/Amanora/backend/internal/http"
 )
 
 func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"not_found","service":"amanora-api"}`))
-	})
-
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
+		Handler:           httpapi.NewRouter(cfg),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
