@@ -86,7 +86,7 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/risk/assets", calculateRiskHandler(riskService))
 	mux.HandleFunc("/", notFoundHandler)
 
-	return mux
+	return secure(mux)
 }
 
 func listComplianceFrameworksHandler(complianceService *compliance.Service) http.HandlerFunc {
