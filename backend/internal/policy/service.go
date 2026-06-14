@@ -77,13 +77,7 @@ func (s *Service) EvaluateAll(ctx context.Context, facts map[string]string) []De
 }
 
 func evaluateDocument(doc Document, facts map[string]string) Decision {
-	compliant := true
-	for key, expected := range doc.Conditions {
-		if facts[key] != expected {
-			compliant = false
-			break
-		}
-	}
+	compliant := EvaluateConditions(doc.Conditions, facts)
 	message := doc.Message
 	if message == "" {
 		message = "policy evaluated"
