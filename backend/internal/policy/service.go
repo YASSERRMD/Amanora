@@ -36,16 +36,14 @@ func NewService() *Service {
 
 func (s *Service) AddPolicy(ctx context.Context, doc Document) (Document, error) {
 	_ = ctx
-	if doc.Name == "" {
-		return Document{}, fmt.Errorf("policy name is required")
-	}
-	if doc.Effect == "" {
-		doc.Effect = "warn"
+	parsed, err := ParseDocument(doc)
+	if err != nil {
+		return Document{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.policies[doc.Name] = doc
-	return doc, nil
+	s.policies[parsed.Name] = parsed
+	return parsed, nil
 }
 
 func (s *Service) ListPolicies() []Document {
