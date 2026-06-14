@@ -13,3 +13,9 @@ type Detector interface {
 	Name() string
 	Detect(field datasource.FieldMetadata, samples []string) []Detection
 }
+
+func DefaultDetectors() []Detector {
+	return []Detector{
+		NewEmailDetector(),
+	}
+}
