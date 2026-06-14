@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YASSERRMD/Amanora/backend/internal/classifier"
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
 	"github.com/YASSERRMD/Amanora/backend/internal/discovery"
@@ -25,10 +26,15 @@ func NewRouter(cfg config.Config) http.Handler {
 		panic(err)
 	}
 	dataSources := datasource.NewService(registry)
-	return NewRouterWithServices(cfg, dataSources, discovery.NewService(dataSources, &discovery.MemoryEventPublisher{}, &discovery.MemoryAuditSink{}))
+	return NewRouterWithServices(
+		cfg,
+		dataSources,
+		discovery.NewService(dataSources, &discovery.MemoryEventPublisher{}, &discovery.MemoryAuditSink{}),
+		classifier.NewDefaultService(),
+	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -40,9 +46,63 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/discovery/jobs", listDiscoveryJobsHandler(discoveryJobs))
 	mux.HandleFunc("GET /api/v1/discovery/jobs/{id}", getDiscoveryJobHandler(discoveryJobs))
 	mux.HandleFunc("POST /api/v1/discovery/jobs/{id}/run", runDiscoveryJobHandler(discoveryJobs))
+	mux.HandleFunc("POST /api/v1/classification/jobs", createClassificationJobHandler(classificationJobs))
+	mux.HandleFunc("GET /api/v1/classification/jobs", listClassificationJobsHandler(classificationJobs))
+	mux.HandleFunc("GET /api/v1/classification/findings", listClassificationFindingsHandler(classificationJobs))
+	mux.HandleFunc("POST /api/v1/classification/run", runClassificationHandler(classificationJobs))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func createClassificationJobHandler(classificationJobs *classifier.Service) http.HandlerFunc {
+	type request struct {
+		Assets []datasource.AssetMetadata `json:"assets"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, classificationJobs.CreateJob(body.Assets))
+	}
+}
+
+func listClassificationJobsHandler(classificationJobs *classifier.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": classificationJobs.ListJobs()})
+	}
+}
+
+func listClassificationFindingsHandler(classificationJobs *classifier.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": classificationJobs.ListFindings()})
+	}
+}
+
+func runClassificationHandler(classificationJobs *classifier.Service) http.HandlerFunc {
+	type request struct {
+		JobID  string                     `json:"jobId"`
+		Assets []datasource.AssetMetadata `json:"assets"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body request
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		jobID := body.JobID
+		if jobID == "" {
+			jobID = classificationJobs.CreateJob(body.Assets).ID
+		}
+		job, err := classificationJobs.RunJob(r.Context(), jobID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "classification_job_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, job)
+	}
 }
 
 func createDiscoveryJobHandler(discoveryJobs *discovery.Service) http.HandlerFunc {
