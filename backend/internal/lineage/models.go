@@ -12,3 +12,15 @@ func IngestionEdge(sourceID string, assetID string) graph.Edge {
 		},
 	}
 }
+
+func TransformationEdge(inputAssetID string, outputAssetID string, operation string) graph.Edge {
+	return graph.Edge{
+		FromID: inputAssetID,
+		ToID:   outputAssetID,
+		Type:   "transforms",
+		Metadata: map[string]string{
+			"model":     "transformation",
+			"operation": operation,
+		},
+	}
+}
