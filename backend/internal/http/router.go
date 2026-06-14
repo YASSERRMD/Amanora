@@ -14,6 +14,7 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/discovery"
 	"github.com/YASSERRMD/Amanora/backend/internal/graph"
 	"github.com/YASSERRMD/Amanora/backend/internal/lineage"
+	"github.com/YASSERRMD/Amanora/backend/internal/policy"
 )
 
 type healthResponse struct {
@@ -36,10 +37,11 @@ func NewRouter(cfg config.Config) http.Handler {
 		classifier.NewDefaultService(),
 		catalog.NewService(),
 		lineage.NewService(graph.NewMemoryRepository()),
+		policy.NewService(),
 	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service, policyService *policy.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -64,9 +66,62 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/lineage/assets/{id}/upstream", getLineageUpstreamHandler(lineageService))
 	mux.HandleFunc("GET /api/v1/lineage/assets/{id}/downstream", getLineageDownstreamHandler(lineageService))
 	mux.HandleFunc("POST /api/v1/lineage/edges", createLineageEdgeHandler(lineageService))
+	mux.HandleFunc("POST /api/v1/policies", createPolicyHandler(policyService))
+	mux.HandleFunc("GET /api/v1/policies", listPoliciesHandler(policyService))
+	mux.HandleFunc("POST /api/v1/policies/{id}/evaluate", evaluatePolicyHandler(policyService))
+	mux.HandleFunc("POST /api/v1/policies/evaluate-all", evaluateAllPoliciesHandler(policyService))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func createPolicyHandler(policyService *policy.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var doc policy.Document
+		if err := decodeJSON(r, &doc); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		created, err := policyService.AddPolicy(r.Context(), doc)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "policy_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func listPoliciesHandler(policyService *policy.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": policyService.ListPolicies()})
+	}
+}
+
+func evaluatePolicyHandler(policyService *policy.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var facts map[string]string
+		if err := decodeJSON(r, &facts); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		decision, err := policyService.Evaluate(r.Context(), r.PathValue("id"), facts)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "policy_not_found", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, decision)
+	}
+}
+
+func evaluateAllPoliciesHandler(policyService *policy.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var facts map[string]string
+		if err := decodeJSON(r, &facts); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": policyService.EvaluateAll(r.Context(), facts)})
+	}
 }
 
 func getLineageHandler(lineageService *lineage.Service) http.HandlerFunc {
