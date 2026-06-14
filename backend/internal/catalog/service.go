@@ -23,6 +23,11 @@ type Field struct {
 	AssetID string `json:"assetId"`
 }
 
+type AssetDetail struct {
+	Asset
+	FieldCount int `json:"fieldCount"`
+}
+
 type SearchFilter struct {
 	Query          string
 	Classification string
@@ -75,6 +80,14 @@ func (s *Service) GetAsset(id string) (Asset, bool) {
 	defer s.mu.RUnlock()
 	asset, ok := s.assets[id]
 	return asset, ok
+}
+
+func (s *Service) GetAssetDetail(id string) (AssetDetail, bool) {
+	asset, ok := s.GetAsset(id)
+	if !ok {
+		return AssetDetail{}, false
+	}
+	return AssetDetail{Asset: asset, FieldCount: len(asset.Fields)}, true
 }
 
 func (s *Service) GetField(id string) (Field, bool) {

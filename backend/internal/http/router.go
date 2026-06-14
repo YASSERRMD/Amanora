@@ -76,7 +76,7 @@ func listCatalogAssetsHandler(catalogService *catalog.Service) http.HandlerFunc 
 
 func getCatalogAssetHandler(catalogService *catalog.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		asset, ok := catalogService.GetAsset(r.PathValue("id"))
+		asset, ok := catalogService.GetAssetDetail(r.PathValue("id"))
 		if !ok {
 			writeError(w, http.StatusNotFound, "asset_not_found", nil)
 			return
