@@ -31,3 +31,5 @@ need to discover, classify, catalog, govern, and audit data across many systems.
 This repository is in Phase 0. The initial work documents the product
 architecture, implementation plan, and contribution workflow before application
 code is added.
+
+Built with OpenAI Codex.
