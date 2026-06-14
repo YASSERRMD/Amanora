@@ -212,3 +212,12 @@ func (a *MemoryAuditSink) RecordDiscoveryAudit(ctx context.Context, job Job, act
 	a.Actions = append(a.Actions, action)
 	return nil
 }
+
+func (a *MemoryAuditSink) Snapshot() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	actions := make([]string, len(a.Actions))
+	copy(actions, a.Actions)
+	return actions
+}
