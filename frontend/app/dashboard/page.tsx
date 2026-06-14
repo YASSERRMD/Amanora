@@ -1,51 +1,41 @@
-import { AppShell } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
 import { FilterBar } from "@/components/filter-bar";
 import { StatusBadge } from "@/components/status-badge";
 
-const metrics = [
-  ["Sources", "18", "success"],
-  ["Catalog assets", "12.8k", "neutral"],
-  ["PII findings", "432", "warning"],
-  ["High risk", "37", "danger"],
-] as const;
-
-const rows = [
-  { asset: "customers", owner: "Privacy", risk: "High", status: "Review" },
-  { asset: "finance_transactions", owner: "Finance", risk: "Medium", status: "Compliant" },
-  { asset: "hr_archive", owner: "People", risk: "High", status: "Retention" },
-];
-
 export default function DashboardPage() {
   return (
-    <AppShell>
-      <div className="space-y-6">
+    <main className="space-y-6 p-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-semibold">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-600">Operational overview across discovery, policy, compliance, and risk.</p>
+          <h1 className="text-2xl font-semibold text-[#172033]">Dashboard</h1>
+          <p className="mt-1 text-sm text-[#657187]">Governance activity and risk posture</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          {metrics.map(([label, value, tone]) => (
-            <div key={label} className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-500">{label}</p>
-              <div className="mt-3 flex items-center justify-between">
-                <p className="text-2xl font-semibold">{value}</p>
-                <StatusBadge tone={tone}>{tone}</StatusBadge>
-              </div>
-            </div>
-          ))}
-        </div>
-        <FilterBar />
-        <DataTable
-          rows={rows}
-          columns={[
-            { key: "asset", header: "Asset", render: (row) => row.asset },
-            { key: "owner", header: "Owner", render: (row) => row.owner },
-            { key: "risk", header: "Risk", render: (row) => row.risk },
-            { key: "status", header: "Status", render: (row) => <StatusBadge>{row.status}</StatusBadge> },
-          ]}
-        />
+        <FilterBar filters={["All sources", "High risk", "PII", "Needs owner"]} />
       </div>
-    </AppShell>
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Sources", "18", "Running"],
+          ["Assets", "12.8k", "Healthy"],
+          ["Findings", "432", "High"],
+          ["Policies", "91%", "Passing"],
+        ].map(([label, value, status]) => (
+          <section key={label} className="rounded-lg border border-[#d9e0ea] bg-white p-5">
+            <p className="text-sm text-[#657187]">{label}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#172033]">{value}</p>
+            <div className="mt-3">
+              <StatusBadge status={status} />
+            </div>
+          </section>
+        ))}
+      </div>
+      <DataTable
+        columns={["Asset", "Workflow", "Status"]}
+        rows={[
+          ["customers", "Classification", "Running"],
+          ["finance_transactions", "Retention", "Passing"],
+          ["hr_archive", "Ownership", "High risk"],
+        ]}
+      />
+    </main>
   );
 }

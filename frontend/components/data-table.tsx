@@ -1,33 +1,27 @@
-type Column<T> = {
-  key: string;
-  header: string;
-  render: (row: T) => React.ReactNode;
+type DataTableProps = {
+  columns: string[];
+  rows: Array<Array<string>>;
 };
 
-type DataTableProps<T> = {
-  columns: Column<T>[];
-  rows: T[];
-};
-
-export function DataTable<T>({ columns, rows }: DataTableProps<T>) {
+export function DataTable({ columns, rows }: DataTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-[#d9e0ea] bg-white">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-slate-50 text-slate-600">
+        <thead className="bg-[#f8fafc] text-[#4f5e75]">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="border-b border-slate-200 px-4 py-3 font-semibold">
-                {column.header}
+              <th key={column} className="border-b border-[#d9e0ea] px-4 py-3 font-semibold">
+                {column}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-b border-slate-100 last:border-0">
-              {columns.map((column) => (
-                <td key={column.key} className="px-4 py-3 text-slate-700">
-                  {column.render(row)}
+            <tr key={index} className="border-b border-[#edf1f6] last:border-0">
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex} className="px-4 py-3 text-[#172033]">
+                  {cell}
                 </td>
               ))}
             </tr>
