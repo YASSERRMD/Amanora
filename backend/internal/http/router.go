@@ -12,6 +12,8 @@ import (
 	"github.com/YASSERRMD/Amanora/backend/internal/config"
 	"github.com/YASSERRMD/Amanora/backend/internal/datasource"
 	"github.com/YASSERRMD/Amanora/backend/internal/discovery"
+	"github.com/YASSERRMD/Amanora/backend/internal/graph"
+	"github.com/YASSERRMD/Amanora/backend/internal/lineage"
 )
 
 type healthResponse struct {
@@ -33,10 +35,11 @@ func NewRouter(cfg config.Config) http.Handler {
 		discovery.NewService(dataSources, &discovery.MemoryEventPublisher{}, &discovery.MemoryAuditSink{}),
 		classifier.NewDefaultService(),
 		catalog.NewService(),
+		lineage.NewService(graph.NewMemoryRepository()),
 	)
 }
 
-func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service) http.Handler {
+func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, discoveryJobs *discovery.Service, classificationJobs *classifier.Service, catalogService *catalog.Service, lineageService *lineage.Service) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler(cfg))
 	mux.HandleFunc("POST /api/v1/datasources", createDataSourceHandler(dataSources))
@@ -57,9 +60,62 @@ func NewRouterWithServices(cfg config.Config, dataSources *datasource.Service, d
 	mux.HandleFunc("GET /api/v1/catalog/assets/{id}", getCatalogAssetHandler(catalogService))
 	mux.HandleFunc("GET /api/v1/catalog/fields/{id}", getCatalogFieldHandler(catalogService))
 	mux.HandleFunc("POST /api/v1/catalog/assets/{id}/tags", assignCatalogTagsHandler(catalogService))
+	mux.HandleFunc("GET /api/v1/lineage/assets/{id}", getLineageHandler(lineageService))
+	mux.HandleFunc("GET /api/v1/lineage/assets/{id}/upstream", getLineageUpstreamHandler(lineageService))
+	mux.HandleFunc("GET /api/v1/lineage/assets/{id}/downstream", getLineageDownstreamHandler(lineageService))
+	mux.HandleFunc("POST /api/v1/lineage/edges", createLineageEdgeHandler(lineageService))
 	mux.HandleFunc("/", notFoundHandler)
 
 	return mux
+}
+
+func getLineageHandler(lineageService *lineage.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := lineageService.AssetLineage(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "lineage_error", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+func getLineageUpstreamHandler(lineageService *lineage.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		edges, err := lineageService.Upstream(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "lineage_error", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": edges})
+	}
+}
+
+func getLineageDownstreamHandler(lineageService *lineage.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		edges, err := lineageService.Downstream(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "lineage_error", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": edges})
+	}
+}
+
+func createLineageEdgeHandler(lineageService *lineage.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var edge graph.Edge
+		if err := decodeJSON(r, &edge); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err)
+			return
+		}
+		created, err := lineageService.UpsertEdge(r.Context(), edge)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "lineage_edge_invalid", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	}
 }
 
 func listCatalogAssetsHandler(catalogService *catalog.Service) http.HandlerFunc {
